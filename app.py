@@ -3,12 +3,15 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import openai
 import requests
+import re
 
 app = FastAPI()
 
 # Получаем API ключи из переменных окружения
-openai.api_key = os.getenv("OPENAI_API_KEY")  # Устанавливаем ключ OpenAI из переменной окружения
-currentsapi_key = os.getenv("CURRENTS_API_KEY")  # Устанавливаем ключ Currents API из переменной окружения
+openai.api_key = os.getenv("OPENAI_API_KEY")  
+# Устанавливаем ключ OpenAI из переменной окружения
+currentsapi_key = os.getenv("CURRENTS_API_KEY")  
+# Устанавливаем ключ Currents API из переменной окружения
 
 # Проверяем, что оба API ключа заданы, иначе выбрасываем ошибку
 if not openai.api_key or not currentsapi_key:
@@ -16,6 +19,10 @@ if not openai.api_key or not currentsapi_key:
 
 class Topic(BaseModel):
     topic: str  # Модель данных для получения темы в запросе
+
+def remove_special_characters(text: str) -> str:
+    # Удаляет символы: ", !, #, .
+    return re.sub(r'["!#.]', '', text)
 
 # Функция для получения последних новостей на заданную тему
 def get_recent_news(topic: str):
@@ -48,24 +55,28 @@ def generate_content(topic: str):
             model="gpt-4o-mini",  # Используем модель GPT-4o-mini
             messages=[{
                 "role": "user", 
-                "content": f"Придумайте привлекательный и точный заголовок для статьи на тему '{topic}', с учётом актуальных новостей:\n{recent_news}. Заголовок должен быть интересным и ясно передавать суть темы. Не используй при ответе такие символы как #, !, ., ","
+                "content": f"Придумайте привлекательный и точный заголовок для статьи на тему '{topic}', с учётом актуальных новостей:\n{recent_news}. Заголовок должен быть интересным и ясно передавать суть темы."
             }],
             max_tokens=30,  # Ограничиваем длину ответа
             temperature=0.5,  # Умеренная случайность
             stop=["\n"]  # Прерывание на новой строке
         ).choices[0].message.content.strip()
 
+        title = remove_special_characters(title)
+
         # Генерация мета-описания для статьи
         meta_description = openai.ChatCompletion.create(
             model="gpt-4o-mini",
             messages=[{
                 "role": "user", 
-                "content": f"Напишите мета-описание для статьи с заголовком: '{title}'. Оно должно быть полным, информативным и содержать основные ключевые слова. Не используй при ответе специальные символы: ", !, #, ."
+                "content": f"Напишите мета-описание для статьи с заголовком: '{title}'. Оно должно быть полным, информативным и содержать основные ключевые слова."
             }],
             max_tokens=60,  # Увеличиваем лимит токенов для полного ответа
             temperature=0.5,
             stop=["."]
         ).choices[0].message.content.strip()
+
+        meta_description = remove_special_characters(meta_description)
 
         # Генерация полного контента статьи
         post_content = openai.ChatCompletion.create(
@@ -81,14 +92,15 @@ def generate_content(topic: str):
                 5. Иметь вступление, основную часть и заключение
                 6. Включать примеры из актуальных новостей
                 7. Каждый абзац должен быть не менее 3-4 предложений
-                8. Не используй при ответе специальные символы: ", !, #, .
-                9. Текст должен быть легким для восприятия и содержательным"""
+                8. Текст должен быть легким для восприятия и содержательным"""
             }],
             max_tokens=750,  # Лимит токенов для развернутого текста
             temperature=0.5,
             presence_penalty=0.6,  # Штраф за повторение фраз
             frequency_penalty=0.6
         ).choices[0].message.content.strip()
+
+        post_content = remove_special_characters(post_content)
 
         # Возвращаем сгенерированный контент
         return {
