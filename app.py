@@ -22,7 +22,7 @@ class Topic(BaseModel):
 
 def remove_special_characters(text: str) -> str:
     # Удаляет символы: ", !, #, (,).
-    return re.sub(r'["!#.()-]', '', text)
+    return re.sub(r'["!#.()-']', '', text)
 
 # Функция для получения последних новостей на заданную тему
 def get_recent_news(topic: str):
